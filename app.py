@@ -118,7 +118,7 @@ df, drug_notes, status = load_data()
 st.markdown("""
     <div class="header-banner">
         <h1>🏥 IV Compatibility Dashboard</h1>
-        <p>งานเภสัชสนเทศ กลุ่มงานเภสัชกรรม • โรงพยาบาลนครพิงค์</p>
+        <p>งานเภสัชสนเทศ กลุ่มงานเภสัชกรรม  โรงพยาบาลนครพิงค์ โทร 053-999200 ต่อ 2279</p>
     </div>
 """, unsafe_allow_html=True)
 
