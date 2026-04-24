@@ -118,7 +118,7 @@ df, drug_notes, status = load_data()
 st.markdown("""
     <div class="header-banner">
         <h1>🏥 IV Compatibility Dashboard</h1>
-        <p>งานเภสัชสนเทศ กลุ่มงานเภสัชกรรม  โรงพยาบาลนครพิงค์ โทร 053-999200 ต่อ 2279</p>
+        <p>งานเภสัชสนเทศ กลุ่มงานเภสัชกรรม โรงพยาบาลนครพิงค์ โทร 053-999200 ต่อ 2279</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -179,14 +179,17 @@ if df is not None:
                 if p1 in df.index and p2 in df.columns and pd.notna(df.loc[p1, p2]) and str(df.loc[p1, p2]).strip().lower() != 'nan': raw = str(df.loc[p1, p2])
                 if raw == "" and p2 in df.index and p1 in df.columns and pd.notna(df.loc[p2, p1]) and str(df.loc[p2, p1]).strip().lower() != 'nan': raw = str(df.loc[p2, p1])
                 
-                res, sheet_advice = (raw.split('|', 1) + [""])[:2] if '|' in raw else (raw, "")
-                res = res.strip().upper()
-                sheet_advice = sheet_advice.strip()
+                # 🛠️ แยกรหัสและคำเตือนออกเป็น 3 ส่วน (รหัส | คำเตือน Y-Site | คำเตือน Admixture)
+                parts = raw.split('|')
+                res = parts[0].strip().upper()
+                y_site_advice = parts[1].strip() if len(parts) > 1 else ""
+                admix_advice = parts[2].strip() if len(parts) > 2 else ""
 
                 st.markdown(f'<div class="pair-title-box">{p1} + {p2}</div>', unsafe_allow_html=True)
                 st.markdown('<div class="panel-box" style="margin-top:-10px;">', unsafe_allow_html=True)
                 
-                def render_route(label, codes, drug_names):
+                # 🛠️ ฟังก์ชันแสดงผลแยกตาม Route
+                def render_route(label, codes, drug_names, route_advice):
                     code = next((c for c in codes if c in res), "ND")
                     mapping = {
                         "X": ("bg-red", "🔴 INCOMPATIBLE", "advice-red"), "I": ("bg-red", "🔴 INCOMPATIBLE", "advice-red"),
@@ -199,32 +202,35 @@ if df is not None:
                     st.markdown(f'<div style="color:#475569; font-weight:bold; font-size:0.95rem; margin-bottom:5px;">{label}</div>', unsafe_allow_html=True)
                     st.markdown(f'<div class="status-badge {cls}">{txt}</div>', unsafe_allow_html=True)
                     
+                    full_txt = ""
+                    # 💡 สร้างคำแนะนำตามสี
                     if adv_cls == "advice-red":
-                        full_txt = f"<b>💡 คำแนะนำ:</b> {sheet_advice if sheet_advice else 'ยาเข้ากันไม่ได้ ห้ามผสมกันหรือห้ามให้ร่วมกันโดยเด็ดขาด'}"
-                        for dn in drug_names:
-                            if dn in drug_notes and 'red' in drug_notes[dn]: full_txt += f"<br>⚠️ <b>[{dn}]:</b> {drug_notes[dn]['red']}"
-                        st.markdown(f'<div class="advice-container {adv_cls}">{full_txt}</div>', unsafe_allow_html=True)
-                        
-                    # ======== ส่วนที่ปรับปรุงลอจิกสีเหลืองตามที่คุณต้องการ ========
+                        full_txt = f"<b>💡 คำแนะนำ:</b> {route_advice if route_advice else 'ยาเข้ากันไม่ได้ ห้ามบริหารยาร่วมกันโดยเด็ดขาด'}"
                     elif adv_cls == "advice-yellow":
                         default_yellow_msg = "ไม่แนะนำให้ใช้ กรณีจำเป็นต้องใช้ร่วมกัน ควรปรึกษาเภสัชกร"
-                        
-                        # บังคับแสดงข้อความ Default เสมอ หากมีข้อความจาก Sheet ให้แสดงต่อท้าย
-                        if sheet_advice:
-                            full_txt = f"<b>💡 คำแนะนำ:</b> {default_yellow_msg}<br>📌 <b>เพิ่มเติม:</b> {sheet_advice}"
-                        else:
-                            full_txt = f"<b>💡 คำแนะนำ:</b> {default_yellow_msg}"
-                            
-                        # ดึงข้อควรระวังเฉพาะยามาจาก Sheet ที่ 2 (ถ้ามี)
-                        for dn in drug_names:
-                            if dn in drug_notes and 'yellow' in drug_notes[dn]: full_txt += f"<br>⚠️ <b>[{dn}]:</b> {drug_notes[dn]['yellow']}"
-                            
-                        st.markdown(f'<div class="advice-container {adv_cls}">{full_txt}</div>', unsafe_allow_html=True)
-                    # ==============================================================
+                        full_txt = f"<b>💡 คำแนะนำ:</b> {default_yellow_msg}"
+                        if route_advice:
+                            full_txt += f"<br>📌 <b>เพิ่มเติม:</b> {route_advice}"
+                    elif route_advice: 
+                        # สีเขียว แต่บังเอิญมีข้อความ Note พิเศษใส่ไว้ (เช่น รหัส YC | ควร Flush ก่อน...)
+                        adv_cls = "advice-yellow" # บังคับให้กล่องคำเตือนเป็นสีเหลือง
+                        full_txt = f"<b>💡 คำแนะนำเพิ่มเติม:</b> {route_advice}"
 
-                render_route("Y-Site Compatibility", ["X", "V", "Y"], [p1, p2])
+                    # 💡 ดึงคำเตือนรายยา (Sheet 2) มาต่อท้าย
+                    if adv_cls in ["advice-red", "advice-yellow"]:
+                        for dn in drug_names:
+                            color_key = 'red' if adv_cls == 'advice-red' else 'yellow'
+                            if dn in drug_notes and color_key in drug_notes[dn]:
+                                full_txt += f"<br>⚠️ <b>[{dn}]:</b> {drug_notes[dn][color_key]}"
+
+                    # แสดงกล่องข้อความเมื่อมีคำแนะนำเท่านั้น
+                    if full_txt:
+                        st.markdown(f'<div class="advice-container {adv_cls}">{full_txt}</div>', unsafe_allow_html=True)
+
+                # 🚀 เรียกใช้งานฟังก์ชัน โดยส่งคำเตือนแยกกันให้ตรง Route
+                render_route("Y-Site Compatibility", ["X", "V", "Y"], [p1, p2], y_site_advice)
                 st.markdown('<hr style="margin: 15px 0; border-color: #f1f5f9;">', unsafe_allow_html=True)
-                render_route("IV Admixture (ผสมถุง)", ["I", "U", "C"], [p1, p2])
+                render_route("IV Admixture (ผสมถุง)", ["I", "U", "C"], [p1, p2], admix_advice)
                 st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('<p style="text-align:center; color:#94a3b8; font-size:0.85rem; margin-top:20px; font-weight:bold;">งานเภสัชสนเทศ กลุ่มงานเภสัชกรรม โรงพยาบาลนครพิงค์</p>', unsafe_allow_html=True)
